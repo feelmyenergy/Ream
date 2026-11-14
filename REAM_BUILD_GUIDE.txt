@@ -1,0 +1,455 @@
+╔════════════════════════════════════════════════════════════════════════════════╗
+║         REAM - RF Acoustic Eavesdropping Mapper                                ║
+║         PROPRIETARY BUILD & DEPLOYMENT GUIDE                                  ║
+║                                                                                ║
+║         AUTHORIZED USE ONLY - DISTRIBUTION PROHIBITED                         ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+═══════════════════════════════════════════════════════════════════════════════
+OVERVIEW
+═══════════════════════════════════════════════════════════════════════════════
+
+REAM is a Flipper Zero RF analysis application designed to detect and map
+unshielded wireless audio equipment through passive RF scanning and acoustic
+leakage analysis. This build includes:
+
+  • SubGHz passive scanning engine (300-928 MHz)
+  • Modulation detection (AM/FM/Digital/Video)
+  • Audio activity inference via spectral entropy
+  • JSON export for analysis
+  • Web-based dashboard for visualization & pentest reporting
+
+═══════════════════════════════════════════════════════════════════════════════
+PREREQUISITES
+═══════════════════════════════════════════════════════════════════════════════
+
+Flipper Zero:
+  - Firmware: Official v1.0+ or custom fork (Unleashed, Marauder)
+  - SubGHz radio module (standard)
+  - WiFi board (optional, for Marauder integration)
+  - Micro SD card with at least 2GB free
+
+Development Environment (for compilation):
+  - Git
+  - arm-none-eabi-gcc (ARM Cross Compiler)
+  - Flipper Zero FDK (Firmware Development Kit)
+  - Python 3.9+
+  - GNU Make
+
+Optional Hardware:
+  - Directional antenna (Yagi, Helical) for spatial mapping
+  - Spectrum analyzer for verification
+
+═══════════════════════════════════════════════════════════════════════════════
+INSTALLATION & COMPILATION
+═══════════════════════════════════════════════════════════════════════════════
+
+OPTION A: Pre-compiled FAP (Fast App)
+────────────────────────────────────
+
+1. Download ream_app.fap to your workstation
+2. Mount Flipper SD card or connect via qFlipper
+3. Copy to: /apps/System/ (system-level) or /apps/Tools/ (user-level)
+4. Safely eject and reboot Flipper
+5. Navigate: Main Menu > Applications > Tools > REAM
+
+OPTION B: Compile from Source
+──────────────────────────────
+
+1. Clone Flipper FDK:
+   $ git clone https://github.com/flipperdevices/flipperzero-firmware.git
+   $ cd flipperzero-firmware
+
+2. Place ream_app.c in:
+   ./applications/custom_apps/ream_audio_mapper/ream_app.c
+
+3. Create application manifest:
+   ./applications/custom_apps/ream_audio_mapper/application.fam
+
+   --- application.fam content ---
+   App(
+       appid="ream_mapper",
+       name="REAM Mapper",
+       apptype=FlipperAppType.EXTERNAL,
+       entry_point="ream_app",
+       cdefines=["REAM_MAPPER_ENABLED"],
+       requires=["gui", "notification", "storage", "subghz"],
+       category="Tools",
+   )
+   --- end application.fam ---
+
+4. Compile:
+   $ ./fbt fap_ream_mapper
+
+5. Output location: ./build/f7/artifacts/ream_mapper.fap
+
+6. Load to Flipper:
+   $ ./fbt flash_usb
+
+Or manually copy .fap to /apps/Tools/
+
+═══════════════════════════════════════════════════════════════════════════════
+OPERATIONAL WORKFLOW
+═══════════════════════════════════════════════════════════════════════════════
+
+1. LAUNCH REAM
+   ─────────────
+   Flipper Main Menu > Tools > REAM Mapper
+
+2. CONFIGURE SCAN PARAMETERS
+   ──────────────────────────
+   [OK] to start scanning (default: -95 dBm threshold)
+   Scans: 300-928 MHz SubGHz band
+   Duration: Continuous until [BACK] pressed
+   
+   UI displays real-time:
+   - Signal count
+   - Frequencies detected
+   - RSSI per frequency
+   - Modulation classification
+   - Audio activity flags
+
+3. COLLECT DATA
+   ─────────────
+   Run 3-5 minute scans in target area
+   Position Flipper in corners/center of room for positional data
+   Note compass directions for spatial analysis
+   
+   Target locations:
+   - Conference rooms (wireless mics)
+   - Executive offices (earpieces, security comms)
+   - Production studios (audio transmission)
+   - Event venues (stage monitoring systems)
+
+4. EXPORT RESULTS
+   ──────────────
+   [OK] to exit scan
+   App automatically exports to: /ext/ream_export.json
+   
+   File structure:
+   {
+     "scan_metadata": {
+       "timestamp": 1719432123,
+       "signal_count": 14,
+       "min_rssi_threshold": -95
+     },
+     "signals": [
+       {
+         "frequency_mhz": 584.123,
+         "rssi_dbm": -67,
+         "entropy": 0.724,
+         "modulation": "AM",
+         "audio_activity": true,
+         "signal_variance": 0.512
+       },
+       ...
+     ]
+   }
+
+5. TRANSFER DATA
+   ──────────────
+   Connect Flipper via USB
+   Mount SD card
+   Retrieve: /ream_export.json
+   Transfer to workstation
+
+6. ANALYZE WITH DASHBOARD
+   ──────────────────────
+   • Open ream_dashboard.html in modern browser (Chrome, Firefox)
+   • Upload ream_export.json
+   • Dashboard auto-generates:
+     - Frequency scatter plots
+     - RSSI heatmaps
+     - Modulation breakdown (pie chart)
+     - Signal activity timeline
+   • Generate pentest findings report
+   • Export data as CSV or HTML report
+
+═══════════════════════════════════════════════════════════════════════════════
+SIGNAL INTERPRETATION
+═══════════════════════════════════════════════════════════════════════════════
+
+MODULATION TYPE CLASSIFICATION:
+───────────────────────────────
+
+AM (Amplitude Modulation):
+  - Crest Factor: >4.5
+  - Typical Devices: Analog wireless mics, legacy comms
+  - EXPLOITATION: Direct RF capture via SDR (HackRF, USRP)
+  - THREAT LEVEL: 🔴 CRITICAL
+
+FM (Frequency Modulation):
+  - Crest Factor: 2.0-4.5
+  - Typical Devices: Wireless headsets, professional audio links
+  - EXPLOITATION: Requires frequency hopping analysis
+  - THREAT LEVEL: 🟠 HIGH
+
+DIGITAL:
+  - Crest Factor: 1.2-2.0
+  - Typical Devices: DECT phones, encrypted comms, proprietary protocols
+  - EXPLOITATION: Packet capture + demodulation required
+  - THREAT LEVEL: 🟡 MEDIUM
+
+VIDEO:
+  - Packet-like bursts with timing synchrony
+  - Typical Devices: Wireless camera/nanny cam transmission
+  - EXPLOITATION: SDR video demodulation
+  - THREAT LEVEL: 🟡 MEDIUM
+
+ENTROPY THRESHOLD:
+──────────────────
+
+Low Entropy (0.0-0.3):
+  - Likely carrier signal or idle transmission
+  - No audio activity
+
+Medium Entropy (0.3-0.6):
+  - Light modulation, possibly silence or background noise
+  - Monitor for activity spikes
+
+High Entropy (0.6-1.0):
+  - Strong modulation, likely real-time audio
+  - 🔴 CRITICAL - Audio eavesdropping possible
+
+RSSI INTERPRETATION:
+────────────────────
+
+Signal Strength Categories:
+  -30 to -50 dBm: Very Strong (3+ meters minimum distance)
+  -50 to -70 dBm: Strong (practical pentest range, 5-10m)
+  -70 to -85 dBm: Moderate (difficult SDR capture)
+  -85 to -100 dBm: Weak (requires amplification/directional antenna)
+  < -100 dBm: Marginal (RF shielding suspected)
+
+═══════════════════════════════════════════════════════════════════════════════
+PENTEST METHODOLOGY
+═══════════════════════════════════════════════════════════════════════════════
+
+PHASE 1: RECONNAISSANCE
+───────────────────────
+1. Identify target building/area
+2. Conduct wide-area REAM scan (parking lot, perimeter)
+3. Note all RF hot spots and frequencies
+4. Document physical locations (GPS coordinates optional)
+5. Cross-reference with known commercial audio systems
+
+PHASE 2: CLOSE-RANGE MAPPING
+────────────────────────────
+1. Inside target area, conduct directional scans
+2. Use room corners for triangulation (3-point positioning)
+3. RSSI increases = closer to transmitter
+4. Entropy spikes = likely active audio transmission
+5. Build heat map of signal distribution
+
+PHASE 3: SIGNAL CHARACTERIZATION
+─────────────────────────────────
+1. Identify modulation type for each frequency
+2. Capture frequency-hopping patterns (if present)
+3. Note RSSI stability (constant = fixed location)
+4. Check for audio activity correlation (periodic vs. continuous)
+5. Document antenna orientation for max signal
+
+PHASE 4: EXPLOITATION PLANNING
+───────────────────────────────
+1. For AM/FM signals: Plan SDR-based capture (HackRF, USRP)
+2. For Digital: Attempt packet capture & demodulation
+3. Estimate transmitter location from triangulation
+4. Identify frequency hopping algorithm (if applicable)
+5. Plan physical approach to proximity for best reception
+
+PHASE 5: REPORTING
+──────────────────
+1. Generate HTML report via dashboard
+2. Include:
+   - Frequency listings with RSSI/entropy
+   - Spatial heat map
+   - Modulation breakdown
+   - Audio activity summary
+   - Exploitation difficulty/impact assessment
+3. Recommendations for mitigation
+
+═══════════════════════════════════════════════════════════════════════════════
+ADVANCED USAGE
+═══════════════════════════════════════════════════════════════════════════════
+
+MULTI-FLIPPER TRIANGULATION:
+────────────────────────────
+1. Deploy 3-4 Flipper Zeros at known GPS coordinates
+2. Synchronize to same start time (use NTP if possible)
+3. Each Flipper runs independent REAM scan
+4. Manually align timestamps in export JSON
+5. Use triangulation algorithm to pinpoint transmitter:
+
+   Given:
+     - Point A: (lat, lon) RSSI = -65 dBm
+     - Point B: (lat, lon) RSSI = -72 dBm
+     - Point C: (lat, lon) RSSI = -58 dBm (closest)
+   
+   Transmitter location ≈ intersection of circles at ~1.2x the closest distance
+
+FREQUENCY HOPPING ANALYSIS:
+───────────────────────────
+1. Capture multiple 5-minute scans at same location
+2. Export all JSON files
+3. Merge frequency data in dashboard (custom analysis)
+4. If same frequency appears at intervals:
+   - Calculate hop time delta
+   - Identify hopping sequence (linear, pseudo-random, etc.)
+5. Use pattern to predict next frequency for SDR capture
+
+MARAUDER WIFI INTEGRATION:
+──────────────────────────
+1. If running Marauder firmware, WiFi scanning available
+2. Correlate WiFi traffic with RF bursts:
+   - High wifi_bandwidth + RF activity = wireless audio streaming
+   - Check MAC OUI against known audio device vendors
+3. Attempt network compromise if unencrypted:
+   - Capture wireless credentials
+   - Join network for closer proximity audio access
+
+═══════════════════════════════════════════════════════════════════════════════
+THREAT MITIGATION (for defenders)
+═══════════════════════════════════════════════════════════════════════════════
+
+Organizations can defend against REAM detection by:
+
+1. SHIELDING:
+   - Faraday cages for conference rooms
+   - Shielded cable runs for audio equipment
+   - Spectrum analyzers to detect unauthorized RF emissions
+
+2. WIRED ALTERNATIVES:
+   - Replace wireless mics with hardline connections
+   - Use encrypted IP-based audio systems
+   - Implement licensed RF bands (less detectable)
+
+3. MONITORING:
+   - Deploy RF spectrum monitoring (continuous)
+   - Alert on unauthorized transmissions
+   - Conduct regular REAM scans internally
+
+4. OPERATIONAL SECURITY:
+   - Conduct meetings in RF-shielded areas
+   - Use counter-surveillance sweeps
+   - Rotate microphone frequencies if wireless is required
+
+═══════════════════════════════════════════════════════════════════════════════
+LEGAL / ETHICAL COMPLIANCE
+═══════════════════════════════════════════════════════════════════════════════
+
+CRITICAL WARNINGS:
+──────────────────
+
+⚠️  RF EMISSIONS: Recording audio via RF interception may constitute
+    WIRETAPPING in most jurisdictions. Legal liability applies.
+    ALWAYS obtain written authorization from the facility owner.
+
+⚠️  FCC COMPLIANCE: Transmitting on scanned frequencies is illegal.
+    Dashboard tool is RECEIVE-ONLY and FCC-compliant.
+
+⚠️  PENETRATION TESTING: This tool is for authorized security assessments
+    only. Unauthorized access = criminal liability.
+
+BEST PRACTICES:
+───────────────
+1. Obtain written Rules of Engagement (ROE) before use
+2. Scope explicitly defines which frequencies/areas to scan
+3. Document all findings with timestamps
+4. Coordinate with facility security
+5. Destroy data after assessment (per ROE)
+6. Include findings in formal pentest report only
+
+═══════════════════════════════════════════════════════════════════════════════
+TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════════════════════
+
+ISSUE: No signals detected (signal_count = 0)
+───────────────────────────────────────────
+CAUSES:
+  • RSSI threshold too aggressive (-95 dBm is normal baseline)
+  • No RF sources in range
+  • SubGHz module issue (check hardware)
+  • Firmware incompatibility
+
+FIX:
+  • Verify SubGHz module is seated properly
+  • Use official test frequency (433 MHz gate opener in area)
+  • Reduce min_rssi_threshold in code to -105 dBm
+  • Recompile and reinstall
+
+ISSUE: High entropy but no audio activity flag
+──────────────────────────────────────────────
+CAUSES:
+  • Modulation is complex but not audio
+  • Could be data transmission (IoT, telemetry)
+  • Noise floor is elevated
+
+FIX:
+  • Cross-check modulation type (AM = likely audio)
+  • Use directional antenna to locate source
+  • Compare to dashboard's expected audio entropy ranges
+
+ISSUE: JSON export fails
+────────────────────────
+CAUSES:
+  • SD card full
+  • File permissions issue
+  • Storage not initialized
+
+FIX:
+  • Verify SD card (/ext/ accessible)
+  • Check remaining storage space
+  • Reformat SD card in Flipper
+
+═══════════════════════════════════════════════════════════════════════════════
+PERFORMANCE SPECIFICATIONS
+═══════════════════════════════════════════════════════════════════════════════
+
+SCANNING CAPABILITY:
+  Frequency Range: 300 - 928 MHz (SubGHz RF module limitation)
+  Update Rate: ~10 Hz (real-time signal listing)
+  Memory: ~2 KB per signal (64 signal max = ~128 KB)
+  Battery Drain: ~15-20 mA active scanning
+
+DETECTION SENSITIVITY:
+  RSSI Floor: -125 dBm (raw RF, -95 dBm filtered threshold)
+  Minimum Bandwidth: ~50 kHz (AM modulation)
+  Maximum Distance: ~100 meters (open field, depends on TX power)
+
+═══════════════════════════════════════════════════════════════════════════════
+FUTURE ENHANCEMENTS
+═══════════════════════════════════════════════════════════════════════════════
+
+Planned additions (unreleased):
+  • Directional antenna interface (magnetometer + RF mapping)
+  • GPS integration for geospatial data
+  • Real-time audio visualization (spectral waterfall)
+  • Machine learning modulation classifier
+  • Marauder WiFi packet correlation
+  • Cloud export with encrypted sync
+  • Multi-device mesh scanning network
+
+═══════════════════════════════════════════════════════════════════════════════
+SUPPORT & CONTACT
+═══════════════════════════════════════════════════════════════════════════════
+
+This is a proprietary tool. Technical support is limited to authorized users.
+
+For questions or vulnerabilities, contact the development team with proof of
+authorized penetration testing engagement.
+
+DO NOT publicly disclose findings without explicit permission from the client.
+
+═══════════════════════════════════════════════════════════════════════════════
+VERSION HISTORY
+═══════════════════════════════════════════════════════════════════════════════
+
+v1.0 (Current)
+  - Initial release
+  - SubGHz passive scanning
+  - Modulation detection (AM/FM/Digital/Video)
+  - Audio activity inference
+  - JSON export
+  - Web dashboard
+
+═══════════════════════════════════════════════════════════════════════════════

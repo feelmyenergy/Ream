@@ -1,0 +1,11 @@
+App(
+    appid="ream_mapper",
+    name="REAM Mapper",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="ream_app",
+    cdefines=["REAM_MAPPER_ENABLED"],
+    requires=["gui", "notification", "storage", "subghz"],
+    category="Tools",
+    stack_size=2048,
+    icon="I:Tools",
+)
